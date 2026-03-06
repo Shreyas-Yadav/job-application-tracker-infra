@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   backend:
     image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/job-tracker-backend:latest

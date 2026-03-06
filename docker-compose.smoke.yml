@@ -1,0 +1,31 @@
+services:
+  db:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: test
+      MYSQL_DATABASE: jobtracker
+      MYSQL_USER: jobuser
+      MYSQL_PASSWORD: test
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/job-tracker-backend:${IMAGE_TAG}
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: jobtracker
+      DB_USER: jobuser
+      DB_PASSWORD: test
+    ports: ["5000:5000"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/job-tracker-frontend:${IMAGE_TAG}
+    ports: ["3000:3000"]
+    depends_on: [backend]

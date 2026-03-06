@@ -62,7 +62,7 @@ jobs:
             echo "Waiting for SSM ($i/24)..." && sleep 10
           done
 
-      - name: Start services on temp EC2 via SSM
+      - name: Start services via docker compose
         run: |
           ECR="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
           CMD_ID=$(aws ssm send-command \
@@ -70,13 +70,9 @@ jobs:
             --document-name "AWS-RunShellScript" \
             --parameters commands="[
               \"aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${ECR}\",
-              \"docker pull ${ECR}/job-tracker-backend:${{ inputs.image_tag }}\",
-              \"docker pull ${ECR}/job-tracker-frontend:${{ inputs.image_tag }}\",
-              \"docker network create app-net || true\",
-              \"docker run -d --name db --network app-net -e MYSQL_ROOT_PASSWORD=test -e MYSQL_DATABASE=jobtracker -e MYSQL_USER=jobuser -e MYSQL_PASSWORD=test mysql:8\",
-              \"sleep 30\",
-              \"docker run -d --name backend --network app-net -p 5000:5000 -e DB_HOST=db -e DB_PORT=3306 -e DB_NAME=jobtracker -e DB_USER=jobuser -e DB_PASSWORD=test ${ECR}/job-tracker-backend:${{ inputs.image_tag }}\",
-              \"docker run -d --name frontend --network app-net -p 3000:3000 ${ECR}/job-tracker-frontend:${{ inputs.image_tag }}\"
+              \"git clone https://github.com/Shreyas-Yadav/job-application-tracker-infra.git /tmp/infra\",
+              \"AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }} IMAGE_TAG=${{ inputs.image_tag }} docker compose -f /tmp/infra/docker-compose.smoke.yml up -d\",
+              \"sleep 60\"
             ]" \
             --query 'Command.CommandId' --output text)
 
