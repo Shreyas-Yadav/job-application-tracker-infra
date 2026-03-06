@@ -1,0 +1,70 @@
+name: Deploy to QA EC2
+
+on:
+  workflow_call:
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: true
+      AWS_REGION:
+        required: true
+      AWS_ACCOUNT_ID:
+        required: true
+      QA_EC2_INSTANCE_ID:
+        required: true
+      DB_HOST:
+        required: true
+      DB_NAME:
+        required: true
+      DB_USER:
+        required: true
+      DB_PASSWORD:
+        required: true
+
+jobs:
+  deploy-qa:
+    name: Deploy to QA EC2 via SSM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy via SSM
+        run: |
+          ECR="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids ${{ secrets.QA_EC2_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands="[
+              \"aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${ECR}\",
+              \"cd /home/ubuntu/app\",
+              \"AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }} DB_HOST=${{ secrets.DB_HOST }} DB_NAME=${{ secrets.DB_NAME }} DB_USER=${{ secrets.DB_USER }} DB_PASSWORD=${{ secrets.DB_PASSWORD }} docker compose pull\",
+              \"AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }} DB_HOST=${{ secrets.DB_HOST }} DB_NAME=${{ secrets.DB_NAME }} DB_USER=${{ secrets.DB_USER }} DB_PASSWORD=${{ secrets.DB_PASSWORD }} docker compose up -d\",
+              \"sleep 10\",
+              \"curl -sf http://localhost:5000/health\"
+            ]" \
+            --query 'Command.CommandId' --output text)
+
+          for i in $(seq 1 30); do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id $CMD_ID \
+              --instance-id ${{ secrets.QA_EC2_INSTANCE_ID }} \
+              --query 'Status' --output text)
+            if [ "$STATUS" = "Success" ]; then
+              echo "Deploy successful"
+              break
+            fi
+            [ "$STATUS" = "Failed" ] && \
+              aws ssm get-command-invocation --command-id $CMD_ID \
+                --instance-id ${{ secrets.QA_EC2_INSTANCE_ID }} \
+                --query 'StandardErrorContent' --output text && exit 1
+            sleep 10
+          done

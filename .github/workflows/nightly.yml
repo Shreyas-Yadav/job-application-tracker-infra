@@ -1,0 +1,41 @@
+name: Nightly Build & Deploy
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - id: tag
+        run: echo "image_tag=$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+
+  build:
+    needs: setup
+    uses: ./.github/workflows/build.yml
+    with:
+      image_tag: ${{ needs.setup.outputs.image_tag }}
+    secrets: inherit
+
+  smoke-test:
+    needs: [setup, build]
+    uses: ./.github/workflows/smoke-test.yml
+    with:
+      image_tag: ${{ needs.setup.outputs.image_tag }}
+    secrets: inherit
+
+  promote:
+    needs: [setup, smoke-test]
+    uses: ./.github/workflows/promote.yml
+    with:
+      image_tag: ${{ needs.setup.outputs.image_tag }}
+    secrets: inherit
+
+  deploy-qa:
+    needs: promote
+    uses: ./.github/workflows/deploy-qa.yml
+    secrets: inherit

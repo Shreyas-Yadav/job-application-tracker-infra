@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  backend:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/job-tracker-backend:latest
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    ports: ["5000:5000"]
+    restart: unless-stopped
+
+  frontend:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/job-tracker-frontend:latest
+    ports: ["3000:3000"]
+    depends_on: [backend]
+    restart: unless-stopped

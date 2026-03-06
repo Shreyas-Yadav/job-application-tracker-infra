@@ -1,0 +1,45 @@
+name: Promote to Latest
+
+on:
+  workflow_call:
+    inputs:
+      image_tag:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: true
+      AWS_REGION:
+        required: true
+      AWS_ACCOUNT_ID:
+        required: true
+
+jobs:
+  promote:
+    name: Retag SHA → latest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Retag SHA → latest
+        run: |
+          for REPO in job-tracker-backend job-tracker-frontend; do
+            MANIFEST=$(aws ecr batch-get-image \
+              --repository-name $REPO \
+              --image-ids imageTag=${{ inputs.image_tag }} \
+              --query 'images[0].imageManifest' --output text)
+            aws ecr put-image \
+              --repository-name $REPO \
+              --image-tag latest \
+              --image-manifest "$MANIFEST"
+          done
