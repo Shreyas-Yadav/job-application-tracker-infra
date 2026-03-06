@@ -7,11 +7,17 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
     ports: ["5000:5000"]
     restart: unless-stopped
 
   frontend:
     image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/job-tracker-frontend:latest
+    environment:
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
     ports: ["3000:3000"]
     depends_on: [backend]
     restart: unless-stopped

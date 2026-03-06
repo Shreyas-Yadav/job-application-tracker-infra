@@ -20,6 +20,7 @@ services:
       DB_NAME: jobtracker
       DB_USER: jobuser
       DB_PASSWORD: test
+      NEXTAUTH_SECRET: smoke-test-secret
     ports: ["5000:5000"]
     depends_on:
       db:
