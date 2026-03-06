@@ -7,7 +7,7 @@ services:
       MYSQL_USER: jobuser
       MYSQL_PASSWORD: test
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "mysql -u jobuser -ptest -e 'SELECT 1' || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 12
