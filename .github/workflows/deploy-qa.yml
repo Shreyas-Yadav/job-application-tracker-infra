@@ -37,7 +37,19 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Check if QA EC2 is running
+        id: check
+        run: |
+          STATE=$(aws ec2 describe-instances \
+            --instance-ids ${{ secrets.QA_EC2_INSTANCE_ID }} \
+            --query 'Reservations[0].Instances[0].State.Name' --output text)
+          echo "state=$STATE" >> $GITHUB_OUTPUT
+          if [ "$STATE" != "running" ]; then
+            echo "QA EC2 is $STATE — skipping deploy"
+          fi
+
       - name: Deploy via SSM
+        if: steps.check.outputs.state == 'running'
         run: |
           ECR="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
           ENV_VARS="AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }} DB_HOST=${{ secrets.DB_HOST }} DB_NAME=${{ secrets.DB_NAME }} DB_USER=${{ secrets.DB_USER }} DB_PASSWORD=${{ secrets.DB_PASSWORD }}"
