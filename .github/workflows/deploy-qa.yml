@@ -56,6 +56,32 @@ jobs:
             echo "QA EC2 is $STATE — skipping deploy"
           fi
 
+      - name: Checkout infra repo
+        if: steps.check.outputs.state == 'running'
+        uses: actions/checkout@v4
+
+      - name: Sync compose file to EC2
+        if: steps.check.outputs.state == 'running'
+        run: |
+          COMPOSE_B64=$(base64 -w 0 docker-compose.prod.yml)
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids ${{ secrets.QA_EC2_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands="[
+              \"echo ${COMPOSE_B64} | base64 -d > /home/ubuntu/app/docker-compose.prod.yml\"
+            ]" \
+            --query 'Command.CommandId' --output text)
+          sleep 5
+          for i in $(seq 1 12); do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id $CMD_ID \
+              --instance-id ${{ secrets.QA_EC2_INSTANCE_ID }} \
+              --query 'Status' --output text 2>/dev/null || echo "Pending")
+            [ "$STATUS" = "Success" ] && echo "Compose file synced" && break
+            [ "$STATUS" = "Failed" ] && echo "Failed to sync compose file" && exit 1
+            sleep 5
+          done
+
       - name: Deploy via SSM
         if: steps.check.outputs.state == 'running'
         run: |
