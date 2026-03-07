@@ -60,15 +60,18 @@ jobs:
         if: steps.check.outputs.state == 'running'
         uses: actions/checkout@v4
 
-      - name: Sync compose file to EC2
+      - name: Sync config files to EC2
         if: steps.check.outputs.state == 'running'
         run: |
           COMPOSE_B64=$(base64 -w 0 docker-compose.prod.yml)
+          NGINX_B64=$(base64 -w 0 nginx.conf)
           CMD_ID=$(aws ssm send-command \
             --instance-ids ${{ secrets.QA_EC2_INSTANCE_ID }} \
             --document-name "AWS-RunShellScript" \
             --parameters commands="[
-              \"echo ${COMPOSE_B64} | base64 -d > /home/ubuntu/app/docker-compose.prod.yml\"
+              \"echo ${COMPOSE_B64} | base64 -d > /home/ubuntu/app/docker-compose.prod.yml\",
+              \"echo ${NGINX_B64} | base64 -d > /etc/nginx/sites-enabled/default\",
+              \"nginx -t && systemctl reload nginx\"
             ]" \
             --query 'Command.CommandId' --output text)
           sleep 5
@@ -77,8 +80,8 @@ jobs:
               --command-id $CMD_ID \
               --instance-id ${{ secrets.QA_EC2_INSTANCE_ID }} \
               --query 'Status' --output text 2>/dev/null || echo "Pending")
-            [ "$STATUS" = "Success" ] && echo "Compose file synced" && break
-            [ "$STATUS" = "Failed" ] && echo "Failed to sync compose file" && exit 1
+            [ "$STATUS" = "Success" ] && echo "Config files synced and nginx reloaded" && break
+            [ "$STATUS" = "Failed" ] && echo "Failed to sync config files" && exit 1
             sleep 5
           done
 
